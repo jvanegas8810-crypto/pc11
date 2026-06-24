@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Asamblea P.H. de 624 Aptos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+
+  <div id="vista-login" class="flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div class="sm:mx-auto sm:w-full sm:max-w-4xl text-center mb-4 px-4">
+      <div id="aviso-tipo-asamblea" class="mb-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-full text-base font-bold shadow-md">
+        ASAMBLEA GENERAL ORDINARIA (Requiere > 50% Quórum)
+      </div>
+      <h2 class="text-3xl font-extrabold text-gray-900">Portal de Registro Digital</h2>
+      <div id="estado-sistema-alerta" class="mt-4 inline-block bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded-md text-sm font-bold animate-pulse">
+        ⚠️ REGISTRO BLOQUEADO: El Administrador aún no ha cargado la base de datos de Excel.
+      </div>
+    </div>
+
+    <div class="mt-4 sm:mx-auto sm:w-full sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 px-4">
+      <div class="bg-white py-8 px-6 shadow rounded-lg sm:px-10 border-t-4 border-indigo-600">
+        <h3 class="text-xl font-bold text-gray-800 mb-6">🔒 Ingreso Administrador</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Usuario</label>
+            <input type="text" id="admin-user" placeholder="Usuario" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 bg-gray-50 p-2.5">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Contraseña</label>
+            <input type="password" id="admin-pass" placeholder="••••••••" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 bg-gray-50 p-2.5">
+          </div>
+          <button onclick="loginAdmin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-md text-sm font-medium transition shadow">
+            Ingresar como Admin
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white py-8 px-6 shadow rounded-lg sm:px-10 border-t-4 border-green-600">
+        <h3 class="text-xl font-bold text-gray-800 mb-4">👥 Ingreso Residentes</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Residente</label>
+            <div class="flex space-x-4">
+              <label class="inline-flex items-center">
+                <input type="radio" name="tipo_usuario" value="propietario" checked onchange="toggleArrendatario(false)" class="text-green-600 focus:ring-green-500">
+                <span class="ml-2 text-sm text-gray-700">Propietario</span>
+              </label>
+              <label class="inline-flex items-center">
+                <input type="radio" name="tipo_usuario" value="arrendatario" onchange="toggleArrendatario(true)" class="text-green-600 focus:ring-green-500">
+                <span class="ml-2 text-sm text-gray-700">Arrendatario</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Cédula del Propietario</label>
+            <input type="number" id="res-cedula-prop" placeholder="Cédula oficial" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 bg-gray-50 p-2.5">
+          </div>
+          
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Torre (1 al 26)</label>
+              <input type="number" id="res-torre" placeholder="Ej: 14" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 bg-gray-50 p-2.5">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Apartamento</label>
+              <input type="number" id="res-apto" placeholder="Ej: 302" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 bg-gray-50 p-2.5">
+            </div>
+          </div>
+
+          <div id="campo-arrendatario" class="hidden bg-yellow-50 p-3 rounded-md border border-yellow-200">
+            <label class="block text-sm font-medium text-yellow-800">Cédula del Arrendatario</label>
+            <input type="number" id="res-cedula-arr" placeholder="Cédula de quien asiste" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 bg-white p-2.5">
+          </div>
+
+          <button onclick="loginResidente()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-md text-sm font-medium transition shadow">
+            Registrar o Reingresar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="vista-admin" class="hidden">
+    <nav class="bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex justify-between items-center flex-wrap gap-4">
+      <div class="flex items-center space-x-4">
+        <span class="text-lg font-bold text-gray-800">Consola de Control</span>
+        <button onclick="regresarAlInicio()" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-medium transition">
+          🏠 Ir a Registro Frontal
+        </button>
+        <button onclick="reiniciarTodoElSistema()" class="text-sm bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-md font-bold transition">
+          🔄 Formatear Todo (Nueva Asamblea)
+        </button>
+      </div>
+
+      <div class="flex bg-gray-200 p-1 rounded-lg">
+        <button id="btn-tipo-ordinaria" onclick="definirTipoAsamblea('ORDINARIA')" class="px-3 py-1 text-xs font-bold rounded-md bg-blue-600 text-white transition">Ordinaria</button>
+        <button id="btn-tipo-extraordinaria" onclick="definirTipoAsamblea('EXTRAORDINARIA')" class="px-3 py-1 text-xs font-bold rounded-md text-gray-700 transition">Extraordinaria</button>
+      </div>
+
+      <button onclick="finalizarAsambleaTotal()" class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-md font-bold transition shadow">
+        🛑 FINALIZAR ASAMBLEA Y DESCARGAR
+      </button>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+          <h3 class="text-gray-500 text-xs font-semibold uppercase tracking-wider">Métricas de Quórum en Vivo (624 Aptos)</h3>
+          <div class="mt-4 flex items-end justify-between flex-wrap gap-2">
+            <div>
+              <span id="quorum-porcentaje" class="text-4xl font-extrabold text-indigo-600">0.0%</span>
+              <span id="hora-apertura-aviso" class="text-xs text-gray-400 block mt-1">Hora de inicio de asamblea: Aún no iniciada (Quórum insuficiente)</span>
+            </div>
+            <div id="quorum-conteo" class="text-right text-sm text-gray-600 font-medium">
+              0 / 624 Apartamentos Activos
+            </div>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-3 mt-3">
+            <div id="quorum-barra" class="bg-indigo-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="border-2 border-dashed border-gray-300 p-4 rounded-md text-center">
+            <p class="text-xs text-gray-500 mb-2 font-bold">1. Cargar Archivo Excel Inicial (Cols: A=Cédula, B=Torre, C=Apto)</p>
+            <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-medium inline-block transition shadow-sm">
+              📁 Seleccionar Archivo
+              <input type="file" id="excel-input" accept=".xlsx, .xls" class="hidden" onchange="procesarExcelPorColumnas(this)">
+            </label>
+            <p id="excel-estado-texto" class="text-xs text-red-500 mt-2 font-semibold">❌ Sin cargar</p>
+          </div>
+          <div class="border-2 border-dashed border-green-300 p-4 rounded-md text-center flex flex-col justify-center items-center">
+            <p class="text-xs text-gray-500 mb-2 font-bold">Descarga Parcial del Reporte actual</p>
+            <button onclick="descargarExcelFinal(false)" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium transition shadow-sm">
+              📥 Descargar Reporte Intermedio
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+          <h3 class="text-sm font-bold text-gray-800 mb-4">📊 Resumen de Preguntas Realizadas</h3>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left font-medium text-gray-500">Hora</th>
+                  <th class="px-3 py-2 text-left font-medium text-gray-500">Pregunta</th>
+                  <th class="px-3 py-2 text-center font-medium text-green-600">SÍ (% Momento)</th>
+                  <th class="px-3 py-2 text-center font-medium text-red-600">NO (% Momento)</th>
+                  <th class="px-3 py-2 text-center text-amber-600 font-bold bg-amber-50">INGRESADOS QUE NO VOTARON (Cant.)</th>
+                  <th class="px-3 py-2 text-center font-medium text-indigo-600 font-bold bg-indigo-50">PARTICIPACIÓN TOTAL (% vs 624 Aptos)</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-resumen-preguntas" class="divide-y divide-gray-200 text-gray-700">
+                <tr>
+                  <td colspan="6" class="px-4 py-4 text-center text-gray-400 italic">No se ha formulado ninguna pregunta todavía.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
+          <h4 class="text-sm font-bold text-gray-700 mb-2">Monitoreo de Quórum en Sala:</h4>
+          <div class="overflow-y-auto max-h-48 text-xs space-y-1" id="lista-conectados">
+            <p class="text-gray-400 italic">No hay residentes registrados en sala.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-lg shadow border border-gray-200 h-fit space-y-4">
+        <h3 class="text-lg font-bold text-gray-900">📝 Formular Pregunta</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Redactar Pregunta</label>
+          <textarea id="pregunta-texto" rows="3" placeholder="Ej: ¿Aprueba el informe económico?" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 bg-gray-50 p-2"></textarea>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Minutos</label>
+            <input type="number" id="pregunta-minutos" value="1" min="0" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 p-2">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Segundos</label>
+            <input type="number" id="pregunta-segundos" value="0" min="0" max="59" class="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 p-2">
+          </div>
+        </div>
+
+        <div id="admin-reloj-box" class="hidden bg-indigo-50 p-3 rounded-md text-center border border-indigo-200">
+          <p class="text-xs font-bold text-indigo-700 uppercase tracking-wide">Tiempo restante de votación</p>
+          <p id="admin-reloj-texto" class="text-2xl font-mono font-bold text-indigo-900 mt-1">00:00</p>
+        </div>
+
+        <button id="btn-lanzar" onclick="lanzarPregunta()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-md transition text-sm shadow">
+          🚀 Lanzar Pregunta
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="vista-residente" class="hidden">
+    <header class="bg-white shadow border-b border-gray-200 px-4 py-3 sticky top-0 z-50">
+      <div class="max-w-3xl mx-auto flex justify-between items-center">
+        <div>
+          <p class="text-xs text-gray-500 font-bold uppercase" id="residente-asamblea-banner">Asamblea General</p>
+          <p id="residente-identificador" class="text-sm font-semibold text-gray-800">Torre - Apto</p>
+        </div>
+        <div class="text-right flex items-center space-x-2">
+          <span class="text-xs text-gray-500 font-medium">Quórum Real:</span>
+          <span id="quorum-badge-residente" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-bold bg-green-100 text-green-800">
+            0.0%
+          </span>
+          <button onclick="salirResidente()" class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded hover:bg-gray-300">Salir de Sala (Voluntario)</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto p-4 mt-4 space-y-6">
+      <div id="residente-espera" class="bg-white p-8 rounded-xl shadow border text-center space-y-4">
+        <div class="animate-spin inline-block w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
+        <p class="text-lg font-medium text-gray-700">En sala de espera de votaciones...</p>
+      </div>
+
+      <div id="residente-pregunta-box" class="hidden bg-white rounded-xl shadow overflow-hidden border border-gray-200">
+        <div class="bg-amber-500 px-4 py-2 flex justify-between items-center text-white font-bold text-sm">
+          <span>⏱️ CUENTA REGRESIVA PARA VOTAR</span>
+          <span id="residente-reloj" class="bg-amber-700 px-3 py-1 rounded font-mono text-base">00:00</span>
+        </div>
+        <div class="p-6">
+          <h2 id="residente-pregunta-texto" class="text-xl font-bold text-gray-900 leading-tight">Pregunta...</h2>
+          <div class="mt-8 grid grid-cols-2 gap-4">
+            <button id="btn-voto-si" onclick="votar('SÍ')" class="bg-green-600 hover:bg-green-700 text-white font-extrabold py-4 rounded-lg text-lg transition shadow">👍 SÍ</button>
+            <button id="btn-voto-no" onclick="votar('NO')" class="bg-red-600 hover:bg-red-700 text-white font-extrabold py-4 rounded-lg text-lg transition shadow">👎 NO</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="residente-grafico-box" class="hidden bg-white p-6 rounded-xl shadow border border-gray-200">
+        <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider block mb-1">Resultados Consolidados de la Pregunta Anterior</span>
+        <h4 id="residente-grafico-titulo" class="text-sm font-bold text-gray-700 mb-4">...</h4>
+        <div class="relative h-64 w-full">
+          <canvas id="graficoBarrasResidente"></canvas>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const TOTAL_APARTAMENTOS = 624;
+
+    // ESTADO GENERAL DE LA APP
+    let databaseExcel = [];        
+    let residentesIngresados = [];
+    let preguntasHistorial = [];  
+    let preguntaActiva = null;
+    let usuarioLogueadoActual = null;
+    let tipoAsamblea = "ORDINARIA";
+    let horaInicioAsamblea = "No Iniciada"; 
+    let asambleaFinalizada = false;
+    
+    let temporizadorInterval = null;
+    let miGraficoChart = null;
+
+    // --- CONFIGURACIÓN DE FIREBASE ---
+    const firebaseConfig = {
+      // ⚠️ REEMPLAZA ESTE BLOQUE CON TUS CREDENCIALES DE FIREBASE
+      apiKey: "TU_API_KEY",
+      authDomain: "tu-proyecto.firebaseapp.com",
+      databaseURL: "https://tu-proyecto-default-rtdb.firebaseio.com",
+      projectId: "tu-proyecto",
+      storageBucket: "tu-proyecto.appspot.com",
+      messagingSenderId: "TU_SENDER_ID",
+      appId: "TU_APP_ID"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+    const refAsamblea = db.ref('asamblea_activa');
+
+    // --- SISTEMA DE SINCRONIZACIÓN EN TIEMPO REAL ---
+    function guardarEstadoEnBaseDeDatos() {
+      const estadoAsamblea = {
+        databaseExcel,
+        residentesIngresados,
+        preguntasHistorial,
+        preguntaActiva,
+        tipoAsamblea,
+        horaInicioAsamblea,
+        asambleaFinalizada,
+      };
+      
+      refAsamblea.set(estadoAsamblea).catch(error => {
+        console.error("Error sincronizando datos:", error);
+      });
+    }
+
+    function iniciarEscuchaFirebase() {
+      refAsamblea.on('value', (snapshot) => {
+        const estado = snapshot.val();
+        if (!estado) return;
+
+        databaseExcel = estado.databaseExcel || [];
+        residentesIngresados = estado.residentesIngresados || [];
+        preguntasHistorial = estado.preguntasHistorial || [];
+        preguntaActiva = estado.preguntaActiva || null;
+        tipoAsamblea = estado.tipoAsamblea || "ORDINARIA";
+        horaInicioAsamblea = estado.horaInicioAsamblea || "No Iniciada";
+        asambleaFinalizada = estado.asambleaFinalizada || false;
+
+        gestionarInactividadUsuarios();
+        actualizarInterfazProtegiendoInputs();
+      });
+    }
+
+    function actualizarInterfazProtegiendoInputs() {
+      const elementoActivo = document.activeElement;
+      const escribiendoTexto = elementoActivo && (elementoActivo.tagName === 'INPUT' || elementoActivo.tagName === 'TEXTAREA');
+
+      if (databaseExcel.length > 0 && !escribiendoTexto) {
+        document.getElementById('excel-estado-texto').innerText = `✅ Cargado (${databaseExcel.length} filas)`;
+        document.getElementById('excel-estado-texto').className = "text-xs text-green-600 mt-2 font-semibold";
+        document.getElementById('estado-sistema-alerta').innerText = "✅ BASE DE DATOS EN LÍNEA: Sincronizada y activa.";
+        document.getElementById('estado-sistema-alerta').className = "mt-4 inline-block bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-md text-sm font-bold";
+      }
+
+      // Si hay una pregunta activa y el temporizador no está corriendo a nivel local, inicializarlo
+      if (preguntaActiva && !temporizadorInterval) {
+          iniciarCicloRelojExistente();
+      } else if (!preguntaActiva && temporizadorInterval) {
+          clearInterval(temporizadorInterval);
+          temporizadorInterval = null;
+          document.getElementById('admin-reloj-box').classList.add('hidden');
+          document.getElementById('btn-lanzar').className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-md transition text-sm shadow";
+      }
+
+      definirTipoAsamblea(tipoAsamblea);
+      
+      if (horaInicioAsamblea !== "No Iniciada" && !escribiendoTexto) {
+        document.getElementById('hora-apertura-aviso').innerText = `🚀 Hora oficial de inicio: ${horaInicioAsamblea}`;
+        document.getElementById('hora-apertura-aviso').className = "text-xs text-green-600 font-bold block mt-1";
+      }
+
+      if (usuarioLogueadoActual) {
+        usuarioLogueadoActual = residentesIngresados.find(r => r.torre === usuarioLogueadoActual.torre && r.apto === usuarioLogueadoActual.apto) || usuarioLogueadoActual;
+        prepararPantallaResidente();
+        if (preguntasHistorial.length > 0) {
+          renderizarGraficoResidente(preguntasHistorial[preguntasHistorial.length - 1]);
+        }
+      }
+
+      actualizarInterfazQuorum();
+      actualizarListaConectadosAdmin();
+      actualizarTablaPreguntasAdmin();
+    }
+
+    function gestionarInactividadUsuarios() {
+      const tiempoActual = Date.now();
+      let cambioDetectado = false;
+
+      residentesIngresados.forEach(r => {
+          if (r.ultimaActividad && (tiempoActual - r.ultimaActividad > 15 * 60 * 1000)) {
+              if(r.estado === 'Presente') {
+                  r.estado = 'Retirado por Inactividad';
+                  r.horaSalida = new Date().toLocaleTimeString();
+                  cambioDetectado = true;
+              }
+          }
+      });
+
+      // Si nosotros detectamos el retiro por inactividad, actualizamos la base general
+      if (cambioDetectado && document.getElementById('vista-admin').classList.contains('hidden') === false) {
+          guardarEstadoEnBaseDeDatos();
+      }
+    }
+
+    function actualizarActividadUsuarioLocal() {
+      if(usuarioLogueadoActual) {
+        usuarioLogueadoActual.ultimaActividad = Date.now();
+        const objEnLista = residentesIngresados.find(r => r.torre === usuarioLogueadoActual.torre && r.apto === usuarioLogueadoActual.apto);
+        if(objEnLista) objEnLista.ultimaActividad = Date.now();
+        guardarEstadoEnBaseDeDatos();
+      }
+    }
+
+    function reiniciarTodoElSistema() {
+      if (confirm("🚨 ATENCIÓN: Esto borrará por completo la base de datos, los registros de asistencia y los votos de forma permanente. ¿Desea formatear?")) {
+        refAsamblea.remove().then(() => {
+            window.location.reload();
+        });
+      }
+    }
+
+    // --- LOGICA DE CONTROL DE ASAMBLEA ---
+    function definirTipoAsamblea(tipo) {
+      tipoAsamblea = tipo;
+      const aviso = document.getElementById('aviso-tipo-asamblea');
+      const banner = document.getElementById('residente-asamblea-banner');
+      const btnOrd = document.getElementById('btn-tipo-ordinaria');
+      const btnExt = document.getElementById('btn-tipo-extraordinaria');
+      
+      if (tipo === "ORDINARIA") {
+        aviso.innerText = "ASAMBLEA GENERAL ORDINARIA (Requiere > 50% Quórum)";
+        aviso.className = "mb-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-full text-base font-bold shadow-md";
+        if(banner) banner.innerText = "Asamblea General Ordinaria";
+        if(btnOrd) btnOrd.className = "px-3 py-1 text-xs font-bold rounded-md bg-blue-600 text-white transition";
+        if(btnExt) btnExt.className = "px-3 py-1 text-xs font-bold rounded-md text-gray-700 transition";
+      } else {
+        aviso.innerText = "ASAMBLEA EXTRAORDINARIA (Requiere > 20% Quórum)";
+        aviso.className = "mb-4 inline-block bg-purple-600 text-white px-6 py-2 rounded-full text-base font-bold shadow-md";
+        if(banner) banner.innerText = "Asamblea Extraordinaria";
+        if(btnOrd) btnOrd.className = "px-3 py-1 text-xs font-bold rounded-md text-gray-700 transition";
+        if(btnExt) btnExt.className = "px-3 py-1 text-xs font-bold rounded-md bg-purple-600 text-white transition";
+      }
+      validarYEstablecerHoraInicio();
+    }
+
+    function validarYEstablecerHoraInicio() {
+      if (horaInicioAsamblea !== "No Iniciada") return;
+      const activos = residentesIngresados.filter(r => r.estado === 'Presente').length;
+      const porcentaje = (activos / TOTAL_APARTAMENTOS) * 100;
+      
+      if ((tipoAsamblea === "ORDINARIA" && porcentaje > 50) || (tipoAsamblea === "EXTRAORDINARIA" && porcentaje > 20)) {
+        horaInicioAsamblea = new Date().toLocaleTimeString();
+        document.getElementById('hora-apertura-aviso').innerText = `🚀 Hora oficial de inicio de asamblea: ${horaInicioAsamblea}`;
+        document.getElementById('hora-apertura-aviso').className = "text-xs text-green-600 font-bold block mt-1";
+      }
+    }
+
+    function procesarExcelPorColumnas(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const filasMatriz = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        databaseExcel = []; 
+        for (let i = 1; i < filasMatriz.length; i++) {
+          const fila = filasMatriz[i];
+          if (fila && fila.length >= 3) {
+            const c_prop = fila[0] !== undefined ? String(fila[0]).trim() : "";
+            const torre  = fila[1] !== undefined ? String(fila[1]).trim() : "";
+            const apto   = fila[2] !== undefined ? String(fila[2]).trim() : "";
+            if (c_prop === "" && torre === "" && apto === "") continue;
+            databaseExcel.push({ cedulaPropietario: c_prop, torre: torre, apartamento: apto });
+          }
+        }
+        document.getElementById('excel-estado-texto').innerText = `✅ Cargado (${databaseExcel.length} filas)`;
+        document.getElementById('excel-estado-texto').className = "text-xs text-green-600 mt-2 font-semibold";
+        document.getElementById('estado-sistema-alerta').innerText = "✅ BASE DE DATOS EN LÍNEA: Cruce habilitado.";
+        document.getElementById('estado-sistema-alerta').className = "mt-4 inline-block bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded-md text-sm font-bold";
+        
+        guardarEstadoEnBaseDeDatos();
+        alert(`¡Base de datos vinculada!`);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // --- INGRESOS CON BLINDAJE ANTISUPLANTACIÓN ---
+    function loginResidente() {
+      if (databaseExcel.length === 0) return alert("❌ El administrador debe cargar el archivo de Excel primero.");
+      
+      const tipo = document.querySelector('input[name="tipo_usuario"]:checked').value;
+      const cedulaPropInput = document.getElementById('res-cedula-prop').value.trim();
+      const torreInput = document.getElementById('res-torre').value.trim();
+      const aptoInput = document.getElementById('res-apto').value.trim();
+      const cedulaArrInput = document.getElementById('res-cedula-arr').value.trim();
+      
+      if (!cedulaPropInput || !torreInput || !aptoInput || (tipo === 'arrendatario' && !cedulaArrInput)) {
+        return alert("⚠️ Complete todos los campos solicitados.");
+      }
+
+      const registroOficial = databaseExcel.find(r => String(r.torre) === String(torreInput) && String(r.apartamento) === String(aptoInput));
+      if (!registroOficial) return alert(`❌ No existe la Torre ${torreInput} - Apto ${aptoInput} en el Excel.`);
+      if (String(registroOficial.cedulaPropietario) !== String(cedulaPropInput)) return alert("❌ La cédula del propietario no coincide con los registros.");
+      
+      let residenteExistente = residentesIngresados.find(r => r.torre === torreInput && r.apto === aptoInput);
+      const ahoraLog = new Date().toLocaleTimeString();
+      const tiempoActualMs = Date.now();
+      
+      if (residenteExistente) {
+        if (tipo === 'arrendatario' && residenteExistente.tipo === 'arrendatario') {
+          if (String(residenteExistente.cedulaArr) !== String(cedulaArrInput)) {
+            return alert(`🚨 ACCESO DENEGADO: Este apartamento ya fue registrado por un arrendatario con una cédula diferente. Sí o sí debe ingresar con la identificación inicial.`);
+          }
+        }
+        if (tipo === 'arrendatario' && residenteExistente.tipo === 'propietario') {
+          return alert("🚨 ACCESO DENEGADO: Este apartamento ya se encuentra registrado bajo la modalidad de Propietario Directo.");
+        }
+
+        residenteExistente.estado = 'Presente';
+        residenteExistente.ultimoIngreso = ahoraLog;
+        residenteExistente.ultimaActividad = tiempoActualMs;
+        usuarioLogueadoActual = residenteExistente;
+      } else {
+        const nuevoResidente = {
+          tipo: tipo,
+          cedulaProp: cedulaPropInput,
+          cedulaArr: tipo === 'arrendatario' ? cedulaArrInput : 'N/A',
+          torre: torreInput,
+          apto: aptoInput,
+          estado: 'Presente',
+          horaPrimerIngreso: ahoraLog,
+          ultimoIngreso: ahoraLog,
+          ultimaActividad: tiempoActualMs,
+          horaSalida: 'N/A',
+          votos: {}
+        };
+        residentesIngresados.push(nuevoResidente);
+        usuarioLogueadoActual = nuevoResidente;
+      }
+
+      guardarEstadoEnBaseDeDatos();
+      actualizarInterfazQuorum();
+      actualizarListaConectadosAdmin();
+      prepararPantallaResidente();
+      cambiarVista('vista-residente');
+    }
+
+    function lanzarPregunta() {
+      if (preguntaActiva) return alert("❌ Ya hay una pregunta activa en este momento.");
+      
+      const texto = document.getElementById('pregunta-texto').value.trim();
+      const mins = parseInt(document.getElementById('pregunta-minutos').value) || 0;
+      const segs = parseInt(document.getElementById('pregunta-segundos').value) || 0;
+      const duracionTotalMs = ((mins * 60) + segs) * 1000;
+      
+      if (!texto || duracionTotalMs <= 0) return alert("Escriba una pregunta y defina un tiempo superior a 0.");
+      
+      preguntaActiva = {
+        id: 'P_' + Date.now(),
+        texto: texto,
+        horaLanzamiento: new Date().toLocaleTimeString(),
+        expira: Date.now() + duracionTotalMs
+      };
+      
+      document.getElementById('pregunta-texto').value = '';
+      document.getElementById('admin-reloj-box').classList.remove('hidden');
+      document.getElementById('btn-lanzar').classList.add('bg-gray-400', 'cursor-not-allowed');
+
+      guardarEstadoEnBaseDeDatos();
+    }
+
+    function iniciarCicloRelojExistente() {
+      if (temporizadorInterval) clearInterval(temporizadorInterval);
+      
+      document.getElementById('admin-reloj-box').classList.remove('hidden');
+      document.getElementById('btn-lanzar').classList.add('bg-gray-400', 'cursor-not-allowed');
+
+      temporizadorInterval = setInterval(function() {
+        if (!preguntaActiva) return; // Por si fue cerrada externamente
+
+        const restanteMs = preguntaActiva.expira - Date.now();
+        if (restanteMs <= 0) {
+          clearInterval(temporizadorInterval);
+          temporizadorInterval = null;
+          // Solo el admin que originó o está en la vista admin cierra el ciclo para no duplicar procesos
+          if(!document.getElementById('vista-admin').classList.contains('hidden')){
+              cerrarCicloPregunta();
+          }
+        } else {
+          const totalSegundos = Math.floor(restanteMs / 1000);
+          const m = Math.floor(totalSegundos / 60).toString().padStart(2, '0');
+          const s = (totalSegundos % 60).toString().padStart(2, '0');
+          const strTiempo = `${m}:${s}`;
+          
+          document.getElementById('admin-reloj-texto').innerText = strTiempo;
+          const clockRes = document.getElementById('residente-reloj');
+          if (clockRes) clockRes.innerText = strTiempo;
+        }
+      }, 1000);
+    }
+
+    function cerrarCicloPregunta() {
+      let totalIngresadosQueNoVotaron = 0;
+      
+      residentesIngresados.forEach(r => {
+        if (!r.votos[preguntaActiva.id] || r.votos[preguntaActiva.id] === 'Sin Responder') {
+          totalIngresadosQueNoVotaron++;
+          if (r.estado === 'Presente') {
+            r.estado = 'Retirado (No contestó)'; 
+            r.horaSalida = new Date().toLocaleTimeString(); 
+          }
+          r.votos[preguntaActiva.id] = 'Sin Responder';
+        }
+      });
+      
+      const enSalaAlVotar = residentesIngresados.filter(r => r.votos[preguntaActiva.id] && r.votos[preguntaActiva.id] !== 'Sin Responder');
+      const totalVotosValidos = enSalaAlVotar.length;
+
+      let pctSiMomento = 0;
+      let pctNoMomento = 0;
+
+      if (totalVotosValidos > 0) {
+        const conteoSi = enSalaAlVotar.filter(r => r.votos[preguntaActiva.id] === 'SÍ').length;
+        const conteoNo = enSalaAlVotar.filter(r => r.votos[preguntaActiva.id] === 'NO').length;
+        pctSiMomento = ((conteoSi / totalVotosValidos) * 100).toFixed(1);
+        pctNoMomento = ((conteoNo / totalVotosValidos) * 100).toFixed(1);
+      }
+
+      const pctParticipacionGlobal = ((totalVotosValidos / TOTAL_APARTAMENTOS) * 100).toFixed(1);
+      const registroPreguntaCompleta = {
+        id: preguntaActiva.id,
+        texto: preguntaActiva.texto,
+        hora: preguntaActiva.horaLanzamiento,
+        si: pctSiMomento,
+        no: pctNoMomento,
+        noVotaronCant: totalIngresadosQueNoVotaron,
+        globalParticipacion: pctParticipacionGlobal 
+      };
+      
+      preguntasHistorial.push(registroPreguntaCompleta);
+      preguntaActiva = null;
+      
+      document.getElementById('admin-reloj-box').classList.add('hidden');
+      document.getElementById('btn-lanzar').className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-md transition text-sm shadow";
+
+      guardarEstadoEnBaseDeDatos();
+    }
+
+    function renderizarGraficoResidente(datosPregunta) {
+      const box = document.getElementById('residente-grafico-box');
+      if(!box) return;
+      box.classList.remove('hidden');
+      document.getElementById('residente-grafico-titulo').innerText = datosPregunta.texto;
+      const ctx = document.getElementById('graficoBarrasResidente').getContext('2d');
+
+      if (miGraficoChart) miGraficoChart.destroy();
+      
+      miGraficoChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [`SÍ (${datosPregunta.si}%)`, `NO (${datosPregunta.no}%)`],
+          datasets: [{
+            label: 'Votos Activos del Momento',
+            data: [datosPregunta.si, datosPregunta.no],
+            backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(239, 68, 68, 0.7)'],
+            borderColor: ['rgb(34, 197, 94)', 'rgb(239, 68, 68)'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true, max: 100 } }
+        }
+      });
+    }
+
+    function actualizarTablaPreguntasAdmin() {
+      const tbody = document.getElementById('tabla-resumen-preguntas');
+      if (preguntasHistorial.length === 0) return;
+
+      tbody.innerHTML = preguntasHistorial.map(p => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 font-mono text-xs text-gray-500">${p.hora}</td>
+          <td class="px-3 py-2 font-medium text-gray-900">${p.texto}</td>
+          <td class="px-3 py-2 text-center text-green-600 font-bold">${p.si}%</td>
+          <td class="px-3 py-2 text-center text-red-600 font-bold">${p.no}%</td>
+          <td class="px-3 py-2 text-center bg-amber-50 text-amber-800 font-bold">${p.noVotaronCant} Unid.</td>
+          <td class="px-3 py-2 text-center bg-indigo-50 font-extrabold text-indigo-900">${p.globalParticipacion}%</td>
+        </tr>
+      `).join('');
+    }
+
+    function finalizarAsambleaTotal() {
+      if (confirm("⚠️ ¿Dar por finalizada la sesión de asamblea? Se consolidarán los libros decorados.")) {
+        asambleaFinalizada = true;
+        guardarEstadoEnBaseDeDatos();
+        descargarExcelFinal(true);
+      }
+    }
+
+    function descargarExcelFinal(esCierreDefinitivo = false) {
+      const wb = XLSX.utils.book_new();
+      const headersAsistencia = [
+        "Torre", "Apartamento", "Tipo de Asistente", "Cédula Propietario", 
+        "Cédula Arrendatario (Asistente)", "Primer Ingreso", "Último Reingreso", 
+        "Hora de Salida", "Estado de Permanencia"
+      ];
+      
+      const matrizAsistencia = [headersAsistencia];
+      residentesIngresados.forEach(r => {
+        let estadoPermanencia = r.estado;
+        if (esCierreDefinitivo && r.estado === 'Presente') estadoPermanencia = "Completó Asamblea";
+        const hSalida = (r.estado === 'Presente' && !esCierreDefinitivo) ? "En Sala" : (r.horaSalida === 'N/A' ? new Date().toLocaleTimeString() : r.horaSalida);
+
+        matrizAsistencia.push([
+          r.torre, r.apto, r.tipo.toUpperCase(), r.cedulaProp, r.cedulaArr,
+          r.horaPrimerIngreso, r.ultimoIngreso, hSalida, estadoPermanencia
+        ]);
+      });
+
+      const wsAsistencia = XLSX.utils.aoa_to_sheet(matrizAsistencia);
+      
+      if (esCierreDefinitivo) {
+        for (let i = 1; i < matrizAsistencia.length; i++) {
+          const residenteOrigen = residentesIngresados[i - 1];
+          let colorHex = "FFFFFF"; 
+          if (residenteOrigen.estado.includes("Retirado")) colorHex = "FEF08A"; 
+          else if (residenteOrigen.estado === 'Presente') colorHex = "BBF7D0";
+
+          for (let col = 0; col < headersAsistencia.length; col++) {
+            const celdaRef = XLSX.utils.encode_cell({ r: i, c: col });
+            if (!wsAsistencia[celdaRef]) wsAsistencia[celdaRef] = { v: "" };
+            wsAsistencia[celdaRef].s = {
+              fill: { fgColor: { rgb: colorHex } },
+              border: {
+                top: { style: "thin", color: { rgb: "E5E7EB" } },
+                bottom: { style: "thin", color: { rgb: "E5E7EB" } }
+              }
+            };
+          }
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, wsAsistencia, "Registro_Asistencia");
+      
+      const headersPreguntas = ["Hora", "Pregunta", "SÍ (%)", "NO (%)", "Ingresados que NO Votaron (Cant.)", "Participación vs 624 Aptos (%)"];
+      const matrizPreguntas = [headersPreguntas];
+      preguntasHistorial.forEach(p => {
+        matrizPreguntas.push([p.hora, p.texto, `${p.si}%`, `${p.no}%`, p.noVotaronCant, `${p.globalParticipacion}%`]);
+      });
+      
+      const wsPreguntas = XLSX.utils.aoa_to_sheet(matrizPreguntas);
+      XLSX.utils.book_append_sheet(wb, wsPreguntas, "Historico_Votaciones");
+
+      const wsResumen = XLSX.utils.json_to_sheet([{
+        "Tipo de Sesión": tipoAsamblea,
+        "Hora de Apertura Oficial": horaInicioAsamblea,
+        "Porcentaje de Quórum Final": document.getElementById('quorum-porcentaje').innerText
+      }]);
+      
+      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen_General");
+
+      XLSX.writeFile(wb, `Reporte_Oficial_Asamblea_${tipoAsamblea}.xlsx`);
+    }
+
+    function toggleArrendatario(mostrar) {
+      document.getElementById('campo-arrendatario').classList.toggle('hidden', !mostrar);
+    }
+
+    function loginAdmin() {
+      const u = document.getElementById('admin-user').value.trim();
+      const p = document.getElementById('admin-pass').value.trim();
+      
+      if (u === "Admin" && p === "1234") {
+        actualizarInterfazQuorum();
+        actualizarListaConectadosAdmin();
+        cambiarVista('vista-admin');
+        document.getElementById('admin-user').value = '';
+        document.getElementById('admin-pass').value = '';
+      } else { 
+        alert("🔒 Credenciales incorrectas.");
+      }
+    }
+
+    function cambiarVista(idVista) {
+      document.getElementById('vista-login').classList.add('hidden');
+      document.getElementById('vista-admin').classList.add('hidden');
+      document.getElementById('vista-residente').classList.add('hidden');
+      document.getElementById(idVista).classList.remove('hidden');
+    }
+
+    function regresarAlInicio() { cambiarVista('vista-login'); }
+    
+    function salirResidente() { 
+      if (usuarioLogueadoActual) {
+        usuarioLogueadoActual.estado = 'Retirado (Salida Voluntaria)';
+        usuarioLogueadoActual.horaSalida = new Date().toLocaleTimeString();
+        guardarEstadoEnBaseDeDatos();
+      }
+      usuarioLogueadoActual = null; 
+      cambiarVista('vista-login');
+    }
+
+    function actualizarInterfazQuorum() {
+      const activos = residentesIngresados.filter(r => r.estado === 'Presente').length;
+      const porcentaje = ((activos / TOTAL_APARTAMENTOS) * 100).toFixed(1);
+      
+      const qp = document.getElementById('quorum-porcentaje');
+      if (qp) qp.innerText = `${porcentaje}%`;
+      
+      const qc = document.getElementById('quorum-conteo');
+      if (qc) qc.innerText = `${activos} / ${TOTAL_APARTAMENTOS} Apartamentos`;
+      
+      const qb = document.getElementById('quorum-barra');
+      if (qb) qb.style.width = `${porcentaje}%`;
+      
+      const badgeRes = document.getElementById('quorum-badge-residente');
+      if (badgeRes) badgeRes.innerText = `${porcentaje}%`;
+
+      validarYEstablecerHoraInicio();
+    }
+
+    function prepararPantallaResidente() {
+      if (!usuarioLogueadoActual) return;
+      
+      document.getElementById('residente-identificador').innerText = `Torre ${usuarioLogueadoActual.torre} - Apto ${usuarioLogueadoActual.apto} (${usuarioLogueadoActual.tipo.toUpperCase()})`;
+
+      const boxPregunta = document.getElementById('residente-pregunta-box');
+      const boxEspera = document.getElementById('residente-espera');
+      
+      if (preguntaActiva && usuarioLogueadoActual.estado === 'Presente' && !usuarioLogueadoActual.votos[preguntaActiva.id]) {
+        boxEspera.classList.add('hidden');
+        boxPregunta.classList.remove('hidden');
+        document.getElementById('residente-pregunta-texto').innerText = preguntaActiva.texto;
+        
+        document.getElementById('btn-voto-si').disabled = false;
+        document.getElementById('btn-voto-no').disabled = false;
+        document.getElementById('btn-voto-si').className = "bg-green-600 hover:bg-green-700 text-white font-extrabold py-4 rounded-lg text-lg transition shadow";
+        document.getElementById('btn-voto-no').className = "bg-red-600 hover:bg-red-700 text-white font-extrabold py-4 rounded-lg text-lg transition shadow";
+      } else {
+        boxPregunta.classList.add('hidden');
+        boxEspera.classList.remove('hidden');
+      }
+    }
+
+    function votar(opcion) {
+      if (!preguntaActiva) return;
+      
+      actualizarActividadUsuarioLocal(); // Refrescar los 15 minutos de gracia
+      usuarioLogueadoActual.votos[preguntaActiva.id] = opcion;
+      
+      document.getElementById('btn-voto-si').disabled = true;
+      document.getElementById('btn-voto-no').disabled = true;
+      document.getElementById('btn-voto-si').className = "bg-gray-300 text-gray-500 font-extrabold py-4 rounded-lg text-lg cursor-not-allowed";
+      document.getElementById('btn-voto-no').className = "bg-gray-300 text-gray-500 font-extrabold py-4 rounded-lg text-lg cursor-not-allowed";
+      
+      guardarEstadoEnBaseDeDatos();
+      alert(`Voto [${opcion}] registrado.`);
+      prepararPantallaResidente();
+    }
+
+    function actualizarListaConectadosAdmin() {
+      const lista = document.getElementById('lista-conectados');
+      if (residentesIngresados.length === 0) {
+        lista.innerHTML = `<p class="text-gray-400 italic">No hay residentes registrados en sala.</p>`;
+        return;
+      }
+      lista.innerHTML = residentesIngresados.map(r => `
+        <div class="p-1.5 bg-gray-50 rounded border mb-1 flex justify-between">
+          <span>Torre ${r.torre} - Apto ${r.apto} [${r.tipo}]</span>
+          <span class="font-bold ${r.estado === 'Presente' ? 'text-green-600':'text-amber-500'}">${r.estado}</span>
+        </div>
+      `).join('');
+    }
+
+    // --- DISPARADOR DE CARGA INICIAL ---
+    window.onload = function() {
+      iniciarEscuchaFirebase();
+    };
+
+    // Actividad constante en la pantalla del residente para evitar caída y chequear inactividad local
+    setInterval(function() {
+      if (!document.getElementById('vista-residente').classList.contains('hidden')) {
+        prepararPantallaResidente();
+        // Si hay interacciones con mouse o toques en la pantalla, se actualiza el reloj interno
+        window.onmousemove = actualizarActividadUsuarioLocal;
+        window.ontouchstart = actualizarActividadUsuarioLocal;
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
